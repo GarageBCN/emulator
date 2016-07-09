@@ -1,0 +1,58 @@
+---
+- hosts: all
+  tasks:
+    - name: Update system packages repository
+      apt: update_cache=yes
+           cache_valid_time=604800
+      become: true
+    - name: Install aptitude
+      apt: name=aptitude
+      become: true
+    - name: Upgrade system to last packages
+      apt: upgrade=yes
+      become: true
+    - name: Install required packages
+      apt: name={{item}}
+      with_items:
+        - unzip
+        - qemu
+      become: true
+    - name: Setup Raspbian workspace
+      file: path=/opt/raspbian
+            state=directory
+            group=root
+            owner=root
+            mode=0755
+      become: true
+    - name: Download Raspbian image
+      get_url: url=https://downloads.raspberrypi.org/raspbian_latest
+               dest=/opt/raspbian/raspbian_latest
+      become: true
+    - name: Uncompress Raspbian image
+      command: /vagrant/bin/uncompress_image.sh
+               chdir=/opt/raspbian
+      become: true
+    - name: Get kernel
+      get_url: url=https://github.com/dhruvvyas90/qemu-rpi-kernel/raw/master/kernel-qemu-4.4.12-jessie
+               dest=/opt/raspbian/kernel-qemu-4.4.12-jessie
+      become: true
+    - name: Prepare image
+      command: /vagrant/bin/prepare_image.sh
+               creates=/opt/raspbian/raspbian_latest.img
+      become: true
+    - name: Create log file
+      file: path=/var/log/robota.log
+            state=touch
+            mode=0666
+      become: true
+    - name: Create service script
+      copy: src=bin/robota_emu
+            dest=/etc/init.d/robota_emu
+            mode=0755
+      become: true
+    - name: Setup service
+      service: name=robota_emu
+               enabled=yes
+               state=restarted
+               runlevel=2
+      become: true

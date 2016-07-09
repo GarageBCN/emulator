@@ -1,0 +1,78 @@
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides: robota_emu
+# Required-Start: $local_fs $network $remote_fs
+# Required-Stop: $local_fs $network $remote_fs
+# Default-Start:  2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: start and stop service robota_emu
+# Description: robota_emu blah blah ...
+### END INIT INFO
+
+RPI_RAM=256
+RASPBIAN_DIR=/opt/raspbian
+RASPBIAN_IMAGE=${RASPBIAN_DIR}/raspbian_latest.img
+RASPBIAN_KERNEL=${RASPBIAN_DIR}/kernel-qemu-4.4.12-jessie
+RASPBIAN_KERNEL_OPTS="root=/dev/sda2 panic=1 rootfstype=ext4 rw"
+QEMU_PID=""
+LOG_FILE=/var/log/robota.log
+
+find_pid() {
+    export QEMU_PID=$(ps auxwww | grep qemu | grep -v grep | tr -s ' ' | cut -d\  -f2)
+}
+
+start() {
+    if [ "${QEMU_PID}" == "" ]; then
+        qemu-system-arm \
+            -cpu arm1176 \
+            -M versatilepb \
+            -m ${RPI_RAM} \
+            -no-reboot \
+            -kernel ${RASPBIAN_KERNEL} \
+            -append "${RASPBIAN_KERNEL_OPTS}" \
+            -vnc 0.0.0.0:0 \
+            -drive "file=${RASPBIAN_IMAGE},index=0,media=disk,format=raw" \
+            -daemonize &>> ${LOG_FILE}
+        find_pid
+        if [ "${QEMU_PID}" == "" ]; then
+            echo "Robota emularot failed to start. Check ${LOG_FILE}"
+        else
+            echo "Robota emulator started"
+        fi
+    else
+        echo "Robota emulator is already running, please stop it first"
+    fi
+}
+
+stop() {
+    if [ "${QEMU_PID}" == "" ]; then
+        echo "Robota emulator is not running"
+    else
+        kill -15 ${QEMU_PID}
+        echo "Robota emulator stopped"
+    fi
+}
+
+restart() {
+    stop
+    find_pid
+    start
+}
+
+status() {
+    if [ "${QEMU_PID}" == "" ]; then
+        echo "Robota emulator is not running"
+    else
+        echo "Robota emulator is running"
+    fi
+}
+
+find_pid
+case "${1}" in
+    start|stop|restart|status)
+        ${1}
+        ;;
+    *)
+        echo "Usage: ${0} {start|stop|restart|status}"
+        ;;
+esac
